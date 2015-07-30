@@ -30,6 +30,7 @@ The plugin has some mandatory configuration options. This is done by passing par
 * Host - hostname or IP address of the XenServer
 * User - the username for authentication
 * Password - the password for authentication
+* Master - the hostname of the pool master for a pool slave
 
 ```
   <LoadPlugin python>
@@ -49,6 +50,7 @@ The plugin has some mandatory configuration options. This is done by passing par
               <Host "10.0.0.101">
                     User "root"
                     Password "mysecretpassword"
+                    Master "10.0.0.100"
               </Host>
         </Module>
   </Plugin>
