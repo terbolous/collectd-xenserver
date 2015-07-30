@@ -240,7 +240,7 @@ class XenServerCollectd:
                     self._LogVerbose('Connecting: %s on %s' % (user, url))
                 else:
                     self.hosts[hostname]['rrdupdates'] = GetRRDUdpates()
-                    self.hosts[hostname]['session'] = self.hosts[self.hosts[hostname]['Master']]['session']
+                    self.hosts[hostname]['session'] = self.hosts[self.hosts[hostname]['master']]['session']
                     self._LogVerbose('Connecting slave: %s on %s' % (user, url))
         # If hostname is set, then we just need to reconnect a specific host
         else:
@@ -254,7 +254,7 @@ class XenServerCollectd:
                 self._LogVerbose('Reconnecting: %s on %s' % (user, url))
             else:
                 self.hosts[hostname]['rrdupdates'] = GetRRDUdpates()
-                self.hosts[hostname]['session'] = self.hosts[self.hosts[hostname]['Master']]['session']
+                self.hosts[hostname]['session'] = self.hosts[self.hosts[hostname]['master']]['session']
                 self._LogVerbose('Reconnecting slave: %s on %s' % (user, url))
 
     def Config(self, conf):
@@ -276,7 +276,7 @@ class XenServerCollectd:
                     passwd = hostchild.values[0]
                 elif hostchild.key == 'Master':
                     master = hostchild.values[0]
-            self.hosts[hostname] = {'url': "http://%s" % hostname,'user': user, 'passwd': passwd}
+            self.hosts[hostname] = {'url': "http://%s" % hostname,'user': user, 'passwd': passwd, 'master': master}
             self._LogVerbose('Reading new host from config: %s => %s' % (hostname, self.hosts[hostname]))
 
     def Read(self):
