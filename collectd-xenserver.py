@@ -230,22 +230,32 @@ class XenServerCollectd:
         # Called at startup
         if hostname == '':
             for hostname in self.hosts.keys():
+                if self.hosts[hostname] == '':
+                    url    = self.hosts[hostname]['url']
+                    user   = self.hosts[hostname]['user']
+                    passwd = self.hosts[hostname]['passwd']
+                    self.hosts[hostname]['rrdupdates'] = GetRRDUdpates()
+                    self.hosts[hostname]['session'] = XenAPI.Session(url)
+                    self.hosts[hostname]['session'].xenapi.login_with_password(user, passwd)
+                    self._LogVerbose('Connecting: %s on %s' % (user, url))
+                else:
+                    self.hosts[hostname]['rrdupdates'] = GetRRDUdpates()
+                    self.hosts[hostname]['session'] = self.hosts[self.hosts[hostname]['Master']]['session']
+                    self._LogVerbose('Connecting slave: %s on %s' % (user, url))
+        # If hostname is set, then we just need to reconnect a specific host
+        else:
+            if self.hosts[hostname]['Master'] == '':
                 url    = self.hosts[hostname]['url']
                 user   = self.hosts[hostname]['user']
-                passwd = self.hosts[hostname]['passwd']
+                passwd = self.hosts[setname]['passwd']
                 self.hosts[hostname]['rrdupdates'] = GetRRDUdpates()
                 self.hosts[hostname]['session'] = XenAPI.Session(url)
                 self.hosts[hostname]['session'].xenapi.login_with_password(user, passwd)
-                self._LogVerbose('Connecting: %s on %s' % (user, url))
-        # If hostname is set, then we just need to reconnect a specific host
-        else:
-            url    = self.hosts[hostname]['url']
-            user   = self.hosts[hostname]['user']
-            passwd = self.hosts[setname]['passwd']
-            self.hosts[hostname]['rrdupdates'] = GetRRDUdpates()
-            self.hosts[hostname]['session'] = XenAPI.Session(url)
-            self.hosts[hostname]['session'].xenapi.login_with_password(user, passwd)
-            self._LogVerbose('Reconnecting: %s on %s' % (user, url))
+                self._LogVerbose('Reconnecting: %s on %s' % (user, url))
+            else:
+                self.hosts[hostname]['rrdupdates'] = GetRRDUdpates()
+                self.hosts[hostname]['session'] = self.hosts[self.hosts[hostname]['Master']]['session']
+                self._LogVerbose('Reconnecting slave: %s on %s' % (user, url))
 
     def Config(self, conf):
         ''' Set the config dictionary hosts[hostname] = {'url': ..,'user': .., 'passwd': ..}  from collectd.conf'''
@@ -256,6 +266,7 @@ class XenServerCollectd:
             hostname = ''
             user = ''
             passwd = ''
+            master = ''
             if node.key == 'Host':
                 hostname = node.values[0]
             for hostchild in node.children:
@@ -263,6 +274,8 @@ class XenServerCollectd:
                     user = hostchild.values[0]
                 elif hostchild.key == 'Password':
                     passwd = hostchild.values[0]
+                elif hostchild.key == 'Master':
+                    master = hostchild.values[0]
             self.hosts[hostname] = {'url': "http://%s" % hostname,'user': user, 'passwd': passwd}
             self._LogVerbose('Reading new host from config: %s => %s' % (hostname, self.hosts[hostname]))
 
