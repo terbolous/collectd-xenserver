@@ -230,7 +230,7 @@ class XenServerCollectd:
         # Called at startup
         if hostname == '':
             for hostname in self.hosts.keys():
-                if self.hosts[hostname] == '':
+                if self.hosts[hostname]['master'] == '':
                     url    = self.hosts[hostname]['url']
                     user   = self.hosts[hostname]['user']
                     passwd = self.hosts[hostname]['passwd']
@@ -244,7 +244,7 @@ class XenServerCollectd:
                     self._LogVerbose('Connecting slave: %s on %s' % (user, url))
         # If hostname is set, then we just need to reconnect a specific host
         else:
-            if self.hosts[hostname]['Master'] == '':
+            if self.hosts[hostname]['master'] == '':
                 url    = self.hosts[hostname]['url']
                 user   = self.hosts[hostname]['user']
                 passwd = self.hosts[setname]['passwd']
