@@ -377,9 +377,9 @@ class XenServerCollectd:
     def _ToCollectd(self, hostname, uuid, metricsData, isHost):
         ''' This is where the metrics are sent to Collectd '''
         if isHost:
-            vmid = 'host-%s' % uuid
+            vmid = 'host.%s' % uuid
         else:
-            vmid = 'vm-%s' % uuid
+            vmid = 'vm.%s' % uuid
 
         for key, value in metricsData.iteritems():
             cltd = collectd.Values(type = 'gauge');
