@@ -50,20 +50,20 @@ from xml.dom import minidom
 from xml.parsers.expat import ExpatError
 
 
-# Per VM dictionary (used by GetRRDUdpates to look up column numbers by variable names)
+# Per VM dictionary (used by GetRRDUpdates to look up column numbers by variable names)
 class VMReport(dict):
-    """Used internally by GetRRDUdpates"""
+    """Used internally by GetRRDUpdates"""
     def __init__(self, uuid):
         self.uuid = uuid
 
-# Per Host dictionary (used by GetRRDUdpates to look up column numbers by variable names)
+# Per Host dictionary (used by GetRRDUpdates to look up column numbers by variable names)
 class HostReport(dict):
-    """Used internally by GetRRDUdpates"""
+    """Used internally by GetRRDUpdates"""
     def __init__(self, uuid):
         self.uuid = uuid
 
 # Fetch and parse data class
-class GetRRDUdpates:
+class GetRRDUpdates:
     """ Object used to get and parse the output the http://host/rrd_udpates?..."""
     def __init__(self):
         # rrdParams are what get passed to the CGI executable in the URL
@@ -223,39 +223,91 @@ class XenServerCollectd:
         self.rrdParams['cf'] = "AVERAGE"
         self.rrdParams['start'] = int(time.time()) - 10
         self.rrdParams['interval'] = 5
+        self.master = None
+
+    def FindMaster(self, hostname=''):
+        ''' This is called to find the master server in a XenServer Cluster'''
+        if hostname == '':
+            for hostname in self.hosts.keys():
+                if self.master is not None:
+                    break
+                self.ConnectToMaster(hostname)
+        else:
+            self.ConnectToMaster(hostname)
+
+    def ConnectToMaster(self, hostname):
+        url    = self.hosts[hostname]['url']
+        user   = self.hosts[hostname]['user']
+        passwd = self.hosts[hostname]['passwd']
+        self.hosts[hostname]['session'] = XenAPI.Session(url)
+        try:
+            self.hosts[hostname]['session'].xenapi.login_with_password(user, passwd)
+        except XenAPI.Failure, e:
+            if e.details[0] == 'HOST_IS_SLAVE':
+                self.master = e.details[1]
+                self._LogVerbose('Found master: %s' % self.master)
+                # Fix to make sure we have a working session to the master
+                self.ConnectToMaster(self.master)
+            else:
+                self._LogVerbose('Unknown exception while trying to get master server: %s:%s' % (e.details[0], e.details[1]))
+        else:
+            self._LogVerbose('No exception means we are master: %s' % hostname)
+            self.master = hostname
 
 
     def Connect(self, hostname=''):
         ''' This is called at the startup of Collectd '''
         # Called at startup
+
+        if self.master is None:
+            # Find the master by looping through all our hosts.
+            # FIXME: this probably doesn't work well with clusters...
+            # FIXME: need a way to handle more than one cluster
+            self.FindMaster(hostname)
+
         if hostname == '':
             for hostname in self.hosts.keys():
-                if self.hosts[hostname]['master'] == '':
+                if hostname == self.master:
                     url    = self.hosts[hostname]['url']
                     user   = self.hosts[hostname]['user']
                     passwd = self.hosts[hostname]['passwd']
-                    self.hosts[hostname]['rrdupdates'] = GetRRDUdpates()
-                    self.hosts[hostname]['session'] = XenAPI.Session(url)
-                    self.hosts[hostname]['session'].xenapi.login_with_password(user, passwd)
+                    self.hosts[hostname]['rrdupdates'] = GetRRDUpdates()
+                    if self.hosts[hostname]['session'] is None:
+                        self.hosts[hostname]['session'] = XenAPI.Session(url)
+                        try:
+                            self.hosts[hostname]['session'].xenapi.login_with_password(user, passwd)
+                        except XenAPI.Failure, e:
+                            if e.details[0] == 'HOST_IS_SLAVE':
+                                self.master = e.details[1]
+
                     self._LogVerbose('Connecting: %s on %s' % (user, url))
                 else:
-                    self.hosts[hostname]['rrdupdates'] = GetRRDUdpates()
-                    self.hosts[hostname]['session'] = self.hosts[self.hosts[hostname]['master']]['session']
-                    self._LogVerbose('Connecting slave: %s on %s' % (user, url))
+                    self.hosts[hostname]['rrdupdates'] = GetRRDUpdates()
+                    if self.hosts[self.master]['session'] is None:
+                        self.hosts[self.master]['session'] = XenAPI.Session(self.hosts[self.master]['url'])
+                        self.hosts[self.master]['session'].xenapi.login_with_password(self.hosts[self.master]['user'], self.hosts[self.master]['passwd'])
+                    #self.hosts[hostname]['session'] = self.hosts[self.master]['session']
+                    #self.hosts[hostname]['session'] = self.hosts[self.hosts[hostname]['master']]['session']
+                    self._LogVerbose('No need to connect to slave')
+                    #self._LogVerbose('Connecting slave: %s on %s' % (user, url))
         # If hostname is set, then we just need to reconnect a specific host
         else:
-            if self.hosts[hostname]['master'] == '':
+            if hostname == self.master:
                 url    = self.hosts[hostname]['url']
                 user   = self.hosts[hostname]['user']
-                passwd = self.hosts[setname]['passwd']
-                self.hosts[hostname]['rrdupdates'] = GetRRDUdpates()
+                passwd = self.hosts[hostname]['passwd']
+                self.hosts[hostname]['rrdupdates'] = GetRRDUpdates()
                 self.hosts[hostname]['session'] = XenAPI.Session(url)
                 self.hosts[hostname]['session'].xenapi.login_with_password(user, passwd)
                 self._LogVerbose('Reconnecting: %s on %s' % (user, url))
             else:
-                self.hosts[hostname]['rrdupdates'] = GetRRDUdpates()
-                self.hosts[hostname]['session'] = self.hosts[self.hosts[hostname]['master']]['session']
-                self._LogVerbose('Reconnecting slave: %s on %s' % (user, url))
+                self.hosts[hostname]['rrdupdates'] = GetRRDUpdates()
+                if self.hosts[self.master]['session'] is None:
+                    self.hosts[self.master]['session'] = XenAPI.Session(self.hosts[self.master]['url'])
+                    self.hosts[self.master]['session'].xenapi.login_with_password(self.hosts[self.master]['user'], self.hosts[self.master]['passwd'])
+                #self.hosts[hostname]['session'] = self.hosts[self.master]['session']
+                #self.hosts[hostname]['session'].xenapi.login_with_password(user, passwd)
+                self._LogVerbose('Reconnecting slave: %s on %s' % (self.hosts[self.master]['user'], self.hosts[self.master]['url']))
 
     def Config(self, conf):
         ''' Set the config dictionary hosts[hostname] = {'url': ..,'user': .., 'passwd': ..}  from collectd.conf'''
@@ -283,7 +335,9 @@ class XenServerCollectd:
         ''' This is called by Collectd every $Interval seconds '''
         for hostname in self.hosts.keys():
             # If the connection is gone, reconnect
-            if self.hosts[hostname]['session'] is None:
+            if self.master is None:
+                self.FindMaster()
+            if self.hosts[self.master]['session'] is None:
                 self.Connect(hostname)
 
             # Dirt fix: Reconnect every x reads to prevent unhandled api session timeout.
@@ -295,8 +349,11 @@ class XenServerCollectd:
 
             self._LogVerbose('Read(): %s' % self.hosts[hostname]['url'] )
             # Fetch the new http://hostname/rrd_update?.. and parse the new data
-            self.hosts[hostname]['rrdupdates'].Refresh(self.hosts[hostname]['session'].handle, self.rrdParams, self.hosts[hostname]['url'])
-
+            self._LogVerbose('Connecting to %s with handle: %s and params: %s' % (self.hosts[hostname]['url'], self.hosts[self.master]['session'].handle, self.rrdParams))
+            try:
+                self.hosts[hostname]['rrdupdates'].Refresh(self.hosts[self.master]['session'].handle, self.rrdParams, self.hosts[hostname]['url'])
+            except IOError, e:
+                self._LogVerbose('Error fetching rrd updates: %s' % e.message)
             # If the option is set, process the host mectrics data
             if self.graphHost:
                 isHost = True
@@ -312,9 +369,9 @@ class XenServerCollectd:
 
     def Shutdown(self):
         ''' Disconnect all the active sessions - This is called by Collectd on SIGTERM '''
-        for hostname in self.hosts.keys():
-            self._LogVerbose('Disconnecting %s ' % hostname)
-            self.hosts[hostname]['session'].logout()
+        if self.master:
+            self.hosts[self.master]['session'].logout()
+            self._LogVerbose('Disconnecting %s ' % self.master)
 
 
     def _ToCollectd(self, hostname, uuid, metricsData, isHost):
