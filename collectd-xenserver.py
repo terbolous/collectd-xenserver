@@ -380,8 +380,9 @@ class XenServerCollectd:
 
     def _ToCollectd(self, hostname, uuid, metricsData, isHost, cluster=None):
         ''' This is where the metrics are sent to Collectd '''
+        vmid = ''
         if cluster:
-            vmid = '%s.' % cluster
+            vmid += '%s.' % cluster
         if isHost:
             vmid += 'host.%s' % uuid
         else:
