@@ -8,6 +8,9 @@ A Collectd plugin to monitor Citrix XenServer
 This is a module for collectd. It try to fetch the last metrics from a Citrix Xenserver
 host and the VMs running on it. This is done by fetching and parsing a xml on the server:
 
+The module automatically detects if a host is pool master or not, and supports
+multiple pools.
+
 http://$username:$password@$host/rrd_updates?start=<secondssinceepoch>&host=true
 
 For more informations about this API, see the Citrix documentation here:
@@ -30,7 +33,6 @@ The plugin has some mandatory configuration options. This is done by passing par
 * Host - IP address of the XenServer (Note: currently only IP address is supported due to cluster support)
 * User - the username for authentication
 * Password - the password for authentication
-* Master - the hostname of the pool master for a pool slave
 * Cluster - where to group the graphs from this host (optional)
 
 ```
@@ -52,8 +54,7 @@ The plugin has some mandatory configuration options. This is done by passing par
               <Host "10.0.0.101">
                     User "root"
                     Password "mysecretpassword"
-                    Master "10.0.0.100"
-                    Cluster "anothercluster"
+                    Cluster "anothercluster.subcluster"
               </Host>
         </Module>
   </Plugin>
