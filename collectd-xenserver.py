@@ -319,6 +319,7 @@ class XenServerCollectd:
             user = ''
             passwd = ''
             master = ''
+            cluster = None
             if node.key == 'Host':
                 hostname = node.values[0]
             for hostchild in node.children:
@@ -328,7 +329,9 @@ class XenServerCollectd:
                     passwd = hostchild.values[0]
                 elif hostchild.key == 'Master':
                     master = hostchild.values[0]
-            self.hosts[hostname] = {'url': "http://%s" % hostname,'user': user, 'passwd': passwd, 'master': master}
+                elif hostchild.key == 'Cluster':
+                    cluster = hostchild.values[0]
+            self.hosts[hostname] = {'url': "http://%s" % hostname,'user': user, 'passwd': passwd, 'master': master, 'cluster': cluster}
             self._LogVerbose('Reading new host from config: %s => %s' % (hostname, self.hosts[hostname]))
 
     def Read(self):
@@ -355,17 +358,18 @@ class XenServerCollectd:
             except IOError, e:
                 self._LogVerbose('Error fetching rrd updates: %s' % e.message)
             # If the option is set, process the host mectrics data
+            cluster = self.hosts[hostname]['cluster']
             if self.graphHost:
                 isHost = True
                 uuid = self.hosts[hostname]['rrdupdates'].GetHostUUID()
                 mectricsData = self._GetRows(hostname, uuid, isHost)
-                self._ToCollectd(hostname, uuid, mectricsData, isHost)
+                self._ToCollectd(hostname, uuid, mectricsData, isHost, cluster)
 
             # Process all row w've found so far for each vm
             for uuid in self.hosts[hostname]['rrdupdates'].GetVMList():
                 isHost = False
                 mectricsData = self._GetRows(hostname, uuid, isHost)
-                self._ToCollectd(hostname, uuid, mectricsData, isHost)
+                self._ToCollectd(hostname, uuid, mectricsData, isHost, cluster)
 
     def Shutdown(self):
         ''' Disconnect all the active sessions - This is called by Collectd on SIGTERM '''
@@ -374,12 +378,14 @@ class XenServerCollectd:
             self._LogVerbose('Disconnecting %s ' % self.master)
 
 
-    def _ToCollectd(self, hostname, uuid, metricsData, isHost):
+    def _ToCollectd(self, hostname, uuid, metricsData, isHost, cluster=None):
         ''' This is where the metrics are sent to Collectd '''
+        if cluster:
+            vmid = '%s.' % cluster
         if isHost:
-            vmid = 'host.%s' % uuid
+            vmid += 'host.%s' % uuid
         else:
-            vmid = 'vm.%s' % uuid
+            vmid += 'vm.%s' % uuid
 
         for key, value in metricsData.iteritems():
             cltd = collectd.Values(type = 'gauge');

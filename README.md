@@ -31,6 +31,7 @@ The plugin has some mandatory configuration options. This is done by passing par
 * User - the username for authentication
 * Password - the password for authentication
 * Master - the hostname of the pool master for a pool slave
+* Cluster - where to group the graphs from this host (optional)
 
 ```
   <LoadPlugin python>
@@ -46,11 +47,13 @@ The plugin has some mandatory configuration options. This is done by passing par
               <Host "10.0.0.100">
                     User "root"
                     Password "mysecretpassword"
+                    Cluster "mycluster"
               </Host>
               <Host "10.0.0.101">
                     User "root"
                     Password "mysecretpassword"
                     Master "10.0.0.100"
+                    Cluster "anothercluster"
               </Host>
         </Module>
   </Plugin>
