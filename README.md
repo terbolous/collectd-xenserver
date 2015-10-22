@@ -27,7 +27,7 @@ http://docs.vmd.citrix.com/XenServer/6.1.0/1.0/en_gb/sdk.html#persistent_perf_st
 
 The plugin has some mandatory configuration options. This is done by passing parameters via the <Module> config section in your Collectd config. The following parameters are recognized:
 
-* Host - hostname or IP address of the XenServer
+* Host - IP address of the XenServer (Note: currently only IP address is supported due to cluster support)
 * User - the username for authentication
 * Password - the password for authentication
 * Master - the hostname of the pool master for a pool slave
