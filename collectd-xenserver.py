@@ -72,6 +72,7 @@ class GetRRDUpdates:
         self.rrdParams['host'] = 'true'   # include data for host (as well as for VMs)
         self.rrdParams['cf'] = 'AVERAGE'  # consolidation function, each sample averages 12 from the 5 second RRD
         self.rrdParams['interval'] = '10'
+        self.vmreport = True
 
     def GetRows(self):
         return self.rows
@@ -124,13 +125,14 @@ class GetRRDUpdates:
         node = self.data_node.childNodes[self.rows - 1 - row].childNodes[0]
         return int(node.firstChild.toxml()) # node.firstChild should have nodeType TEXT_NODE
 
-    def Refresh(self, session, override_rrdParams = {}, server = 'http://localhost'):
+    def Refresh(self, session, override_rrdParams = {}, server = 'http://localhost', vmreport = True):
         rrdParams = dict(self.rrdParams)
         rrdParams.update(override_rrdParams)
         rrdParams['host'] = "true"
         rrdParams['session_id'] = session
         rrdParamstr = "&".join(["%s=%s"  % (k,rrdParams[k]) for k in rrdParams])
         url = "%s/rrd_updates?%s" % (server, rrdParamstr)
+        self.vmreport = vmreport
 
         #print "Query: %s" % url
 
@@ -189,7 +191,7 @@ class GetRRDUpdates:
         # vmOrHost will be 'vm' or 'host'.  Note that the Control domain counts as a VM!
         (cf, vmOrHost, uuid, param) = col_meta_data.split(':')
 
-        if vmOrHost == 'vm':
+        if vmOrHost == 'vm' and self.vmreport is True:
             # Create a report for this VM if it doesn't exist
             if not self.vm_reports.has_key(uuid):
                 self.vm_reports[uuid] = VMReport(uuid)
@@ -274,6 +276,7 @@ class XenServerCollectd:
             user = ''
             passwd = ''
             cluster = None
+            vmreport = True
             if node.key == 'Host':
                 hostname = node.values[0]
             for hostchild in node.children:
@@ -283,7 +286,11 @@ class XenServerCollectd:
                     passwd = hostchild.values[0]
                 elif hostchild.key == 'Cluster':
                     cluster = hostchild.values[0]
-            self.hosts[hostname] = {'url': "http://%s" % hostname,'user': user, 'passwd': passwd, 'cluster': cluster, 'master': None, 'host': hostname}
+                elif hostchild.key == 'VMReport':
+                    _vmreport = hostchild.values[0]
+                    if str.lower(_vmreport) == 'false':
+                        vmreport = False
+            self.hosts[hostname] = {'url': "http://%s" % hostname,'user': user, 'passwd': passwd, 'cluster': cluster, 'master': None, 'host': hostname, 'vmreport': vmreport}
             self._LogVerbose('Reading new host from config: %s => %s' % (hostname, self.hosts[hostname]))
 
     def GetHandle(self, hostname):
@@ -337,7 +344,7 @@ class XenServerCollectd:
 
             self._LogVerbose('Connecting to %s with handle: %s and params: %s' % (self.hosts[hostname]['url'], handle, self.rrdParams))
             try:
-                self.hosts[hostname]['rrdupdates'].Refresh(handle, self.rrdParams, self.hosts[hostname]['url'])
+                self.hosts[hostname]['rrdupdates'].Refresh(handle, self.rrdParams, self.hosts[hostname]['url'], self.hosts[hostname]['vmreport'])
             except IOError, e:
                 self._LogVerbose('Error fetching rrd updates: %s' % e.message)
             # If the option is set, process the host mectrics data
